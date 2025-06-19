@@ -1,6 +1,6 @@
 # In-Memory Database
 
-## Overview
+## Overview
 
 This repository aims to design an in-memory database that must be able to store `string` and `[]string`. The db must support the next operations:
 
@@ -24,7 +24,7 @@ Optional features:
 - Perfomance tests
 - Authentication
 
-## Design
+## Design
 
 This section describes how the project has been structured and the line of thought that I have followed to accomplish the definition of the database.
 
@@ -178,7 +178,7 @@ type ApiClient interface {
 In the `test` folder, you can find the database integration tests.  To simulate the application as realistically as possible, I decided to use the [testcontainers](https://golang.testcontainers.org/) package, which makes it easy to run the tests against the application's container.
 
 
-## Installation and usage
+## Installation and usage
 
 The API can be launch using the tasks defined in the `Taskfile.yaml`, so the tool [Task](https://taskfile.dev/installation) must be installed in your computer. The next commands can be used to run tests and launch the API. 
 
