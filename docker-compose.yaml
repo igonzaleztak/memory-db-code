@@ -1,0 +1,14 @@
+services:
+  gomemdb:
+    container_name: gomemdb
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080" # Main service port
+      - "8081:8081" # Health check port
+    environment:
+      - API_VERSION="v1.0.0"
+      - PORT=8080
+      - HEALTH_PORT=8081
+      

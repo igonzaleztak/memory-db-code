@@ -1,0 +1,5 @@
+filename: memory_mock.go
+packages:
+  memorydb/internal/db:
+    interfaces:
+      DBClient:

@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: MemoryDB API
+  version: "1.0.0"
+  description: In-memory key-value store API with TTL support and list operations.
+
+paths:
+  /api/v1/set:
+    post:
+      summary: Store a value in the memory database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRowRequest'
+      responses:
+        '200':
+          description: Value successfully stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OKResponse'
+        '400':
+          description: Invalid request payload
+        '500':
+          description: Internal server error
+
+  /api/v1/{key}:
+    get:
+      summary: Retrieve a value by key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Value found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RowResponse'
+        '404':
+          description: Key not found or expired
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete a value by key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Value deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OKResponse'
+        '404':
+          description: Key not found
+        '500':
+          description: Internal server error
+
+    patch:
+      summary: Update a value by key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRowRequest'
+      responses:
+        '200':
+          description: Value updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OKResponse'
+        '404':
+          description: Key not found
+        '500':
+          description: Internal server error
+
+  /api/v1/{key}/push:
+    patch:
+      summary: Push a value into a string slice at the given key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushItemToSliceRequest'
+      responses:
+        '200':
+          description: Value pushed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RowResponse'
+        '400':
+          description: Invalid value type or structure
+        '404':
+          description: Key not found
+        '500':
+          description: Internal server error
+
+  /api/v1/{key}/pop:
+    patch:
+      summary: Pop the last item from a string slice at the given key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Value popped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RowResponse'
+        '404':
+          description: Key not found or slice is empty
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    SetRowRequest:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+          description: The key to store the value under
+        value:
+          description: The value to store (must be string or array of strings)
+        ttl:
+          type: string
+          format: duration
+          description: Optional time-to-live in Go duration format
+          example: "1h"
+
+    PushItemToSliceRequest:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          type: string
+          description: The string value to push to the slice
+        ttl:
+          type: string
+          format: duration
+          description: Optional TTL in Go duration format
+          example: "1h"
+
+    RowResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        kind:
+          type: string
+          description: Type of the value stored
+          enum: [string, string_slice]
+        ttl:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OKResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: ok

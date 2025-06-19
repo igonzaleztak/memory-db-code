@@ -1,0 +1,30 @@
+version: "3"
+
+tasks:
+  mod:
+    desc: updates the go modules
+    cmds:
+      - go mod download
+
+  test:
+    desc: runs the tests
+    deps:  [mod]
+    cmds:
+      - go test -skip TestIntegration  -v ./... -race
+
+  integration_test:
+    desc: runs the integration tests
+    deps:  [mod]
+    cmds:
+      - go test -v test/integration_test.go -race
+
+  run:
+    desc: starts the API
+    deps:  [mod]
+    cmds:
+      - go run cmd/main.go
+
+  docker:
+    desc: start the docker-compose
+    cmds:
+      - docker compose up -d

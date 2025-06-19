@@ -1,0 +1,6 @@
+*.md
+*.sh
+docker-compose.yaml
+.git
+.vscode
+.mockery.yaml
