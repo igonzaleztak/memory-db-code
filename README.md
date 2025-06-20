@@ -12,6 +12,7 @@
 	- [Optional features](#optional-features)
 		- [Data persistence](#data-persistence)
 		- [Performance test](#performance-test)
+		- [Authentication Module](#authentication-module)
 
 
 ## Overview
@@ -474,3 +475,47 @@ go test -run=^$ -bench=. -benchmem -v ./... -race
 ```
 
 To get more detailed insights of the Go code I would perform profiling.
+
+
+### Authentication Module
+
+Unfortunately, I did not have enough time to implement the authentication module, but here is how I would approach it. Assuming the authentication layer is required to protect restricted endpoints, I would proceed as follows:
+
+1. Create an `auth` package inside the `internal` directory. This package would implement the following interface. The `Register` method would be used to register users in the application, hence the inclusion of `adminUser` and `adminPassword` parameters.  Once users log in, they would receive a JWT token signed by the application.
+   
+	```go
+	type AuthManager interface {
+		Register(adminUser, adminPassword, username, password string) error
+		Login(username, password string) (string, error)
+		RefreshToken(token string) (string, error)
+		Logout(token string) error
+	}
+	```
+
+2. Create a user table in the in-memory database to store the username, the hashed password, and the token associated with each user
+
+	```go
+	type AuthItem struct {
+		UUID uuid.UUID `json:"uuid"`
+		Username string `json:"username"`
+		Password string `json:"password"` // hashed password.
+		Token    string `json:"token"`
+	}
+	```
+	Since a new table is required, it would be added to the in-memory database as a separate map.
+	A dedicated `sync.RWMutex` would also be created for this table to avoid locking the main data store when only modifying authentication data.
+	
+	```go
+	type memoryDB struct {
+		storeMu    sync.RWMutex
+		store      map[string]*Item
+
+		authMu     sync.RWMutex
+		authStore  map[uuid.UUID]*AuthItem
+
+		// ...
+	}
+	```
+
+3. Connect the auth module to the database, then implement the necessary endpoints as described in the `AuthManager` interface so users can authenticate through the platform.
+4. Define protected endpoints, and implement a middleware that validates incoming JWTs. The middleware would verify token expiration and signature validity to ensure proper access control.
