@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"log/slog"
 	"memorydb/internal/db"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ type MemoryDBSuite struct {
 }
 
 func (suite *MemoryDBSuite) SetupTest() {
-	suite.db = db.NewMemoryDB()
+	suite.db = db.NewMemoryDB(slog.Default())
 }
 
 func (suite *MemoryDBSuite) TeardownTest() {}
@@ -39,7 +40,7 @@ func (suite *MemoryDBSuite) TestSetAndGet() {
 			suite.NoError(err)
 			item, err := suite.db.Get(v.key)
 			suite.NoError(err)
-			suite.Equal(v.out, item.Value)
+			suite.Equal(v.out, item.Value.Val)
 		}
 	}
 }
@@ -67,7 +68,7 @@ func (suite *MemoryDBSuite) TestUpdate() {
 			suite.NoError(err)
 			item, err := suite.db.Get(v.key)
 			suite.NoError(err)
-			suite.Equal(v.out, item.Value)
+			suite.Equal(v.out, item.Value.Val)
 		}
 	}
 }
@@ -104,12 +105,12 @@ func (suite *MemoryDBSuite) TestPush() {
 
 	values := []struct {
 		key           string
-		valuesToPush  []string
+		valuesToPush  string
 		expectedValue []string
 		expectedError bool
 	}{
-		{"list", []string{"two"}, []string{"one", "two"}, false},
-		{"missing", []string{"x"}, nil, true},
+		{"list", "two", []string{"one", "two"}, false},
+		{"missing", "x", nil, true},
 	}
 
 	for _, v := range values {
@@ -120,7 +121,7 @@ func (suite *MemoryDBSuite) TestPush() {
 		} else {
 			suite.NoError(err)
 			suite.NotNil(item)
-			suite.Equal(v.expectedValue, item.Value)
+			suite.Equal(v.expectedValue, item.Value.Val)
 		}
 	}
 }
@@ -145,7 +146,7 @@ func (suite *MemoryDBSuite) TestPop() {
 		} else {
 			suite.NoError(err)
 			suite.NotNil(item)
-			suite.Equal(v.expectedValue, item.Value)
+			suite.Equal(v.expectedValue, item.Value.Val)
 		}
 	}
 }
@@ -173,7 +174,7 @@ func (suite *MemoryDBSuite) TestExpiration() {
 			suite.Nil(item)
 		} else {
 			suite.NoError(err)
-			suite.Equal(v.value, item.Value)
+			suite.Equal(v.value, item.Value.Val)
 		}
 	}
 }

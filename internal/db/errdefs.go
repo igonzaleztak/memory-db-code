@@ -15,6 +15,8 @@ func NewDBError(message, sysmessage string) *DBerror {
 	return &DBerror{Message: message, SysMessage: sysmessage}
 }
 
+// Error returns the error message. This method is required to implement the error interface.
+// This way we can return db errors as regular errors.
 func (e *DBerror) Error() string {
-	return "database error"
+	return e.Message
 }

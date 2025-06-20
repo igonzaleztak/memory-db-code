@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"memorydb/internal/db"
 	"memorydb/internal/transport/schemas"
 	"net/http"
 	"net/url"
@@ -86,7 +87,10 @@ func (c *client) Set(key string, value any, ttl *time.Duration) (*schemas.OKResp
 		return nil, fmt.Errorf("failed to join path for key %s: %w", key, err)
 	}
 
-	data := schemas.SetRowRequest{Key: key, Value: value, TTL: ttl}
+	data := schemas.SetRowRequest{Key: key, Value: db.StringOrSlice{Val: value}}
+	if ttl != nil {
+		data.TTL = &schemas.Duration{Duration: *ttl}
+	}
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body for %s: %w", endpoint, err)
@@ -146,7 +150,10 @@ func (c *client) Update(key string, value any, ttl *time.Duration) (*schemas.OKR
 		return nil, fmt.Errorf("failed to join path for key %s: %w", key, err)
 	}
 
-	data := schemas.SetRowRequest{Key: key, Value: value, TTL: ttl}
+	data := schemas.UpdateRowRequest{Value: db.StringOrSlice{Val: value}}
+	if ttl != nil {
+		data.TTL = &schemas.Duration{Duration: *ttl}
+	}
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body for %s: %w", endpoint, err)
@@ -182,7 +189,10 @@ func (c *client) Push(key string, value string, ttl *time.Duration) (*ApiRespons
 	if err != nil {
 		return nil, fmt.Errorf("failed to join path for key %s: %w", key, err)
 	}
-	data := schemas.PushItemToSliceRequest{Value: value, TTL: ttl}
+	data := schemas.PushItemToSliceRequest{Value: value}
+	if ttl != nil {
+		data.TTL = &schemas.Duration{Duration: *ttl}
+	}
 	body, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body for %s: %w", endpoint, err)

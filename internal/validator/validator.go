@@ -2,7 +2,6 @@ package validator
 
 import (
 	"errors"
-	"reflect"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -15,7 +14,7 @@ type Validator interface {
 
 // ValidateJSON validates a given struct with json tags, and returns an error if the validation fails.
 func ValidateJSON(obj any) error {
-	v := newJSONValidator()
+	v := validator.New(validator.WithRequiredStructEnabled())
 	if err := handleValidationErrors(v.Struct(obj)); err != nil {
 		return err
 	}
@@ -31,21 +30,11 @@ func ValidateJSON(obj any) error {
 	return nil
 }
 
-// newJSONValidator creates a new validator instance for validating JSON objects.
-func newJSONValidator() *validator.Validate {
-	v := validator.New(validator.WithRequiredStructEnabled())
-	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-		if name == "-" {
-			return ""
-		}
-		return name
-	})
-
-	return v
-}
-
 // handleValidationErrors converts validation errors to a human readable format.
+//
+// By modifying this function, you can customize the error messages returned to the user
+// when validation fails. For example, in this case we haved defined that when a field is required,
+// the error message will be "field 'x' is required".
 func handleValidationErrors(err error) error {
 	if err == nil {
 		return nil

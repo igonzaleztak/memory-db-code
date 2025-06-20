@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -34,46 +35,37 @@ func (suite *HandlerSuite) SetupTest() {
 
 func (s *HandlerSuite) TestSet() {
 	s.Run("Set ok", func() {
-		body := schemas.SetRowRequest{
-			Key:   "testKey",
-			Value: "testValue",
-		}
+		body := `{
+			"key": "testKey",
+			"value": "testValue"
+		}`
 
-		bodyBytes, err := json.Marshal(body)
-		s.Require().NoError(err, "failed to marshal request")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/set", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/set", bytes.NewBuffer([]byte(body)))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
 		// Mock the database to expect a Set call
-		s.db.On("Set", "testKey", "testValue").Return(nil)
+		s.db.On("Set", "testKey", "testValue", mock.Anything).Return(nil)
 		s.handler.HandleSet(w, req)
 
 		resp := w.Result()
 		s.Equal(http.StatusOK, resp.StatusCode, "expected status code 200 OK")
 
 		var exptectResponse schemas.OKResponse
-		err = json.NewDecoder(resp.Body).Decode(&exptectResponse)
+		err := json.NewDecoder(resp.Body).Decode(&exptectResponse)
 		s.Require().NoError(err, "failed to decode response")
 		s.Equal("ok", exptectResponse.Message, "expected response message to be 'ok'")
 	})
 
-	s.Run("Set error", func() {
-		body := schemas.SetRowRequest{
-			Key:   "testKey",
-			Value: 123, // Invalid value type
-		}
+	s.Run("Set error invalid json", func() {
+		body := `{
+			"key": "testKey",
+			"value": 1234
+		}`
 
-		bodyBytes, err := json.Marshal(body)
-		s.Require().NoError(err, "failed to marshal request")
-
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/set", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/set", bytes.NewBuffer([]byte(body)))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
-
-		// Mock the database to return an error
-		s.db.On("Set", "testKey", "testValue").Return(db.ErrInvalidDataType)
 
 		s.handler.HandleSet(w, req)
 
@@ -81,16 +73,16 @@ func (s *HandlerSuite) TestSet() {
 		s.NotEqual(http.StatusOK, resp.StatusCode, "expected non-200 status code")
 
 		var errResponse apierrors.ApiError
-		err = json.NewDecoder(resp.Body).Decode(&errResponse)
+		err := json.NewDecoder(resp.Body).Decode(&errResponse)
 		s.Require().NoError(err, "failed to decode error response")
-		s.Equal(apierrors.ErrInvalidRequest.Code, errResponse.Code, "expected error code to be 'invalid_data_type'")
+		s.Equal(apierrors.ErrInvalidJSON.Code, errResponse.Code, "expected error code to be 'invalid_data_type'")
 	})
 }
 
 func (s *HandlerSuite) TestGet() {
 	s.Run("Get ok", func() {
 		key := "testKey"
-		s.db.On("Get", key).Return(&db.Item{Value: "testValue"}, nil)
+		s.db.On("Get", key).Return(&db.Item{Value: &db.StringOrSlice{Val: "testValue"}}, nil)
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/%v", key), nil)
 		req = withUrlParam(req, "key", key)
@@ -155,14 +147,11 @@ func (s *HandlerSuite) TestUpdate() {
 		key := "testKey"
 		s.db.On("Update", key, "updatedValue").Return(nil)
 
-		body := schemas.SetRowRequest{
-			Key:   key,
-			Value: "updatedValue",
-		}
-		bodyBytes, err := json.Marshal(body)
-		s.Require().NoError(err, "failed to marshal request")
+		body := `{
+			"value": "updatedValue"
+		}`
 
-		req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/v1/%v", key), bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/v1/%v", key), bytes.NewBuffer([]byte(body)))
 		req.Header.Set("Content-Type", "application/json")
 		req = withUrlParam(req, "key", key)
 		w := httptest.NewRecorder()
@@ -173,7 +162,7 @@ func (s *HandlerSuite) TestUpdate() {
 		resp := w.Result()
 		s.Equal(http.StatusOK, resp.StatusCode, "expected status code 200 OK")
 		var response schemas.OKResponse
-		err = json.NewDecoder(resp.Body).Decode(&response)
+		err := json.NewDecoder(resp.Body).Decode(&response)
 		s.Require().NoError(err, "failed to decode response")
 		s.Equal("ok", response.Message, "expected response message to be 'ok'")
 	})
@@ -183,7 +172,7 @@ func (s *HandlerSuite) TestPush() {
 	s.Run("Push ok", func() {
 		key := "testKey"
 		newValue := "testNew"
-		s.db.On("Push", key, []string{newValue}).Return(&db.Item{Value: []string{"test", newValue}}, nil)
+		s.db.On("Push", key, newValue).Return(&db.Item{Value: &db.StringOrSlice{Val: []string{"test", newValue}}}, nil)
 		body := schemas.PushItemToSliceRequest{
 			Value: newValue,
 		}
@@ -212,7 +201,7 @@ func (s *HandlerSuite) TestPush() {
 func (s *HandlerSuite) TestPop() {
 	s.Run("Pop ok", func() {
 		key := "testKey"
-		s.db.On("Pop", key).Return(&db.Item{Value: []string{}}, nil)
+		s.db.On("Pop", key).Return(&db.Item{Value: &db.StringOrSlice{Val: []string{}}}, nil)
 
 		req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/v1/%v/pop", key), nil)
 		req = withUrlParam(req, "key", key)

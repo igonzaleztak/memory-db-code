@@ -15,7 +15,7 @@ type DBClient interface {
 	Remove(key string) error
 
 	// Push adds a new item to the memory database with the specified key and value.
-	Push(key string, values []string, opts ...ItemOptions) (*Item, error)
+	Push(key string, value string, opts ...ItemOptions) (*Item, error)
 
 	// Pop removes and returns the last item from a slice stored at the specified key.
 	Pop(key string) (*Item, error)

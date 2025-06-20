@@ -28,9 +28,13 @@ func main() {
 
 	// start the in-memory database
 	logger.Info("Starting MemoryDB application", "version", "1.0.0")
-	db := db.NewMemoryDB(
-		db.WithCleanupInterval(configuration.DefaultCleanupInterval),
-	)
+
+	dbOpts := []db.DBOptions{db.WithCleanupInterval(configuration.DefaultCleanupInterval)}
+	if configuration.PersistenceEnabled {
+		logger.Info("Persistence is enabled, setting up database with persistence options")
+		dbOpts = append(dbOpts, db.WithPersistenceEnabled(configuration.DBPath))
+	}
+	db := db.NewMemoryDB(logger, dbOpts...)
 
 	// Start the HTTP server with the loaded configuration and database instance
 	httpServer := transport.NewServer(

@@ -1,7 +1,11 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"memorydb/internal/enums"
+	"os"
 	"sync"
 	"time"
 )
@@ -15,28 +19,25 @@ const (
 	defaultCleanupInterval = 5 * time.Minute // default interval for cleanup routine
 )
 
-type DBOptions interface {
-	apply(*memoryDB)
-}
-
-// WithCleanupInterval sets the interval for the cleanup routine.
-type WithCleanupInterval time.Duration
-
-func (o WithCleanupInterval) apply(db *memoryDB) {
-	db.cleanupInterval = time.Duration(o)
-}
-
 // memoryDB represents an in-memory database that stores items with optional expiration.
 type memoryDB struct {
+	logger          *slog.Logger     // logger for logging operations
 	store           map[string]*Item // in-memory store for items
 	cleanupInterval time.Duration    // interval for cleanup routine
 	mu              sync.RWMutex     // mutex for preventing race conditions
 	stopChan        chan struct{}    // channel to stop the cleanup routine
+
+	// Optional features
+	persistenceEnabled bool          // flag to indicate if persistence is enabled
+	dbPath             string        // path for persistence storage, if enabled
+	logFile            *os.File      // file handle for logging operations, if persistence is enabled
+	logEncoder         *json.Encoder // encoder for writing operations to the log file
 }
 
 // NewmemoryDB creates a new instance of memoryDB with an initialized store.
-func NewMemoryDB(opts ...DBOptions) DBClient {
+func NewMemoryDB(logger *slog.Logger, opts ...DBOptions) DBClient {
 	db := &memoryDB{
+		logger:          logger,
 		store:           make(map[string]*Item),
 		cleanupInterval: defaultCleanupInterval,
 		stopChan:        make(chan struct{}),
@@ -45,6 +46,13 @@ func NewMemoryDB(opts ...DBOptions) DBClient {
 	// Apply options to the memoryDB instance
 	for _, opt := range opts {
 		opt.apply(db)
+	}
+
+	// If persistence is enabled, set up the log file and encoder
+	if db.persistenceEnabled {
+		if err := db.loadStoredData(); err != nil {
+			panic(fmt.Sprintf("failed to load stored data: %v", err))
+		}
 	}
 
 	// Start a cleanup routine to remove expired items every 5 minutes
@@ -83,6 +91,14 @@ func (db *memoryDB) Set(key string, value any, opts ...ItemOptions) error {
 		return fmt.Errorf("failed to create value for key %s: %w", key, err)
 	}
 
+	// log the operation
+	db.logOperation(&Operation{
+		Command: enums.DBCommandSet,
+		Key:     key,
+		Time:    time.Now(),
+		Item:    itemToStore,
+	})
+
 	db.store[key] = itemToStore
 	return nil
 }
@@ -97,7 +113,18 @@ func (db *memoryDB) Update(key string, value any, opts ...ItemOptions) error {
 		return fmt.Errorf("key %s not found for update", key)
 	}
 
-	return itemToUpdate.update(value, opts...)
+	if err := itemToUpdate.update(value, time.Now(), opts...); err != nil {
+		return fmt.Errorf("failed to update value for key '%s': %w", key, err)
+	}
+
+	db.logOperation(&Operation{
+		Command: enums.DBCommandUpdate,
+		Key:     key,
+		Time:    time.Now(),
+		Item:    itemToUpdate,
+	})
+
+	return nil
 }
 
 // Remove deletes an item from the memory database by its key.
@@ -110,11 +137,19 @@ func (db *memoryDB) Remove(key string) error {
 	}
 
 	delete(db.store, key)
+
+	// log the operation
+	db.logOperation(&Operation{
+		Command: enums.DBCommandRemove,
+		Key:     key,
+		Time:    time.Now(),
+	})
+
 	return nil
 }
 
 // Push adds a new item to the memory database with the specified key and value.
-func (db *memoryDB) Push(key string, values []string, opts ...ItemOptions) (*Item, error) {
+func (db *memoryDB) Push(key string, value string, opts ...ItemOptions) (*Item, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -123,9 +158,21 @@ func (db *memoryDB) Push(key string, values []string, opts ...ItemOptions) (*Ite
 		return nil, fmt.Errorf("key %s not found for push", key)
 	}
 
-	if err := item.pushToSlice(values...); err != nil {
+	updatedAt := time.Now()
+	if err := item.pushToSlice(updatedAt, value); err != nil {
 		return nil, fmt.Errorf("failed to push values to key %s: %w", key, err)
 	}
+
+	// log the operation
+	db.logOperation(&Operation{
+		Command: enums.DBCommandPush,
+		Key:     key,
+		Time:    updatedAt,
+		Item: &Item{
+			Value:     &StringOrSlice{value},
+			UpdatedAt: updatedAt,
+		},
+	})
 
 	return item, nil
 }
@@ -140,9 +187,20 @@ func (db *memoryDB) Pop(key string) (*Item, error) {
 		return nil, fmt.Errorf("key %s not found for pop", key)
 	}
 
-	if err := item.popFromSlice(); err != nil {
+	updatedAt := time.Now()
+	if err := item.popFromSlice(updatedAt); err != nil {
 		return nil, fmt.Errorf("failed to pop item from key %s: %w", key, err)
 	}
+
+	// log the operation
+	db.logOperation(&Operation{
+		Command: enums.DBCommandPop,
+		Key:     key,
+		Time:    updatedAt,
+		Item: &Item{
+			UpdatedAt: updatedAt,
+		},
+	})
 
 	return item, nil
 }
@@ -153,6 +211,13 @@ func (db *memoryDB) Close() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.store = make(map[string]*Item)
+
+	// close the log file if persistence is enabled
+	if db.persistenceEnabled {
+		if db.logFile != nil {
+			db.logFile.Close() // Close the log file if persistence is enabled
+		}
+	}
 }
 
 // startCleanupRoutine starts a goroutine that periodically cleans up expired items from the memory database.

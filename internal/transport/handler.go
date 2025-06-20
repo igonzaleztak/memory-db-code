@@ -33,9 +33,9 @@ func (h *Handler) HandleSet(w http.ResponseWriter, r *http.Request) {
 	// store value in the db
 	var opts []db.ItemOptions
 	if body.TTL != nil {
-		opts = append(opts, db.WithTTL(*body.TTL))
+		opts = append(opts, db.WithTTL(body.TTL.Duration))
 	}
-	err := h.db.Set(body.Key, body.Value, opts...)
+	err := h.db.Set(body.Key, body.Value.Val, opts...)
 	if err != nil {
 		wrapError(w, fmt.Errorf("failed to set item in db: %w", err))
 		return
@@ -100,7 +100,7 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// decode the request body into a SetRequest object
-	var body schemas.SetRowRequest
+	var body schemas.UpdateRowRequest
 	if err := decodeJSON(r.Body, &body); err != nil {
 		wrapError(w, err)
 		return
@@ -109,11 +109,11 @@ func (h *Handler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	// update value in the db
 	var opts []db.ItemOptions
 	if body.TTL != nil {
-		opts = append(opts, db.WithTTL(*body.TTL))
+		opts = append(opts, db.WithTTL(body.TTL.Duration))
 	}
-	err := h.db.Update(keyParam, body.Value, opts...)
+	err := h.db.Update(keyParam, body.Value.Val, opts...)
 	if err != nil {
-		wrapError(w, fmt.Errorf("failed to update item in db: %w", err))
+		wrapError(w, h.wrapDBError(err))
 		return
 	}
 
@@ -139,9 +139,9 @@ func (h *Handler) HandlePush(w http.ResponseWriter, r *http.Request) {
 	// push value to db
 	var opts []db.ItemOptions
 	if body.TTL != nil {
-		opts = append(opts, db.WithTTL(*body.TTL))
+		opts = append(opts, db.WithTTL(body.TTL.Duration))
 	}
-	row, err := h.db.Push(keyParam, []string{body.Value}, opts...)
+	row, err := h.db.Push(keyParam, body.Value, opts...)
 	if err != nil {
 		wrapError(w, h.wrapDBError(err))
 		return

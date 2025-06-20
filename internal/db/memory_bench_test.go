@@ -2,13 +2,14 @@ package db_test
 
 import (
 	"fmt"
+	"log/slog"
 	"memorydb/internal/db"
 	"strconv"
 	"testing"
 )
 
 func BenchmarkMemoryDB_Set(b *testing.B) {
-	memdb := db.NewMemoryDB()
+	memdb := db.NewMemoryDB(slog.Default())
 	defer memdb.Close()
 
 	// Pre-populate the database with some items
@@ -23,7 +24,7 @@ func BenchmarkMemoryDB_Set(b *testing.B) {
 }
 
 func BenchmarkMemoryDB_Get(b *testing.B) {
-	m := db.NewMemoryDB()
+	m := db.NewMemoryDB(slog.Default())
 	defer m.Close()
 
 	// Prepopulate
@@ -43,7 +44,7 @@ func BenchmarkMemoryDB_Get(b *testing.B) {
 }
 
 func BenchmarkMemoryDB_Remove(b *testing.B) {
-	m := db.NewMemoryDB()
+	m := db.NewMemoryDB(slog.Default())
 	defer m.Close()
 
 	// Prepopulate

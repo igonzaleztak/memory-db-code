@@ -11,4 +11,7 @@ services:
       - API_VERSION="v1.0.0"
       - PORT=8080
       - HEALTH_PORT=8081
-      
+
+      # # Environment variables for guaranteeing persitence of the information
+      # - PERSISTENCE_ENABLED=true
+      # - PERSISTENCE_PATH="/tmp/gomemdb"

@@ -193,12 +193,12 @@ func (_c *MockDBClient_Pop_Call) RunAndReturn(run func(key string) (*Item, error
 }
 
 // Push provides a mock function for the type MockDBClient
-func (_mock *MockDBClient) Push(key string, values []string, opts ...ItemOptions) (*Item, error) {
+func (_mock *MockDBClient) Push(key string, value string, opts ...ItemOptions) (*Item, error) {
 	var tmpRet mock.Arguments
 	if len(opts) > 0 {
-		tmpRet = _mock.Called(key, values, opts)
+		tmpRet = _mock.Called(key, value, opts)
 	} else {
-		tmpRet = _mock.Called(key, values)
+		tmpRet = _mock.Called(key, value)
 	}
 	ret := tmpRet
 
@@ -208,18 +208,18 @@ func (_mock *MockDBClient) Push(key string, values []string, opts ...ItemOptions
 
 	var r0 *Item
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string, []string, ...ItemOptions) (*Item, error)); ok {
-		return returnFunc(key, values, opts...)
+	if returnFunc, ok := ret.Get(0).(func(string, string, ...ItemOptions) (*Item, error)); ok {
+		return returnFunc(key, value, opts...)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string, []string, ...ItemOptions) *Item); ok {
-		r0 = returnFunc(key, values, opts...)
+	if returnFunc, ok := ret.Get(0).(func(string, string, ...ItemOptions) *Item); ok {
+		r0 = returnFunc(key, value, opts...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*Item)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string, []string, ...ItemOptions) error); ok {
-		r1 = returnFunc(key, values, opts...)
+	if returnFunc, ok := ret.Get(1).(func(string, string, ...ItemOptions) error); ok {
+		r1 = returnFunc(key, value, opts...)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -233,22 +233,22 @@ type MockDBClient_Push_Call struct {
 
 // Push is a helper method to define mock.On call
 //   - key string
-//   - values []string
+//   - value string
 //   - opts ...ItemOptions
-func (_e *MockDBClient_Expecter) Push(key interface{}, values interface{}, opts ...interface{}) *MockDBClient_Push_Call {
+func (_e *MockDBClient_Expecter) Push(key interface{}, value interface{}, opts ...interface{}) *MockDBClient_Push_Call {
 	return &MockDBClient_Push_Call{Call: _e.mock.On("Push",
-		append([]interface{}{key, values}, opts...)...)}
+		append([]interface{}{key, value}, opts...)...)}
 }
 
-func (_c *MockDBClient_Push_Call) Run(run func(key string, values []string, opts ...ItemOptions)) *MockDBClient_Push_Call {
+func (_c *MockDBClient_Push_Call) Run(run func(key string, value string, opts ...ItemOptions)) *MockDBClient_Push_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 string
 		if args[0] != nil {
 			arg0 = args[0].(string)
 		}
-		var arg1 []string
+		var arg1 string
 		if args[1] != nil {
-			arg1 = args[1].([]string)
+			arg1 = args[1].(string)
 		}
 		var arg2 []ItemOptions
 		var variadicArgs []ItemOptions
@@ -270,7 +270,7 @@ func (_c *MockDBClient_Push_Call) Return(item *Item, err error) *MockDBClient_Pu
 	return _c
 }
 
-func (_c *MockDBClient_Push_Call) RunAndReturn(run func(key string, values []string, opts ...ItemOptions) (*Item, error)) *MockDBClient_Push_Call {
+func (_c *MockDBClient_Push_Call) RunAndReturn(run func(key string, value string, opts ...ItemOptions) (*Item, error)) *MockDBClient_Push_Call {
 	_c.Call.Return(run)
 	return _c
 }

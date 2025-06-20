@@ -30,6 +30,15 @@ tasks:
     cmds:
       - go run cmd/main.go
 
+  run_persistence:
+    desc: starts the API with persistence enabled
+    deps:  [mod]
+    env:
+      PERSISTENCE_ENABLED: true
+      DB_PATH: .db
+    cmds:
+      - go run cmd/main.go
+
   docker:
     desc: start the docker-compose
     cmds:

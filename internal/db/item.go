@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -23,6 +24,7 @@ const (
 )
 
 // ItemOptions is an interface that allows for applying options to an item.
+// In this case, the only option that is available is WithTTL, which sets the time-to-live for the item to a custom value.
 type ItemOptions interface {
 	apply(*Item)
 }
@@ -34,13 +36,46 @@ func (o WithTTL) apply(opts *Item) {
 	opts.TTL = time.Now().Add(time.Duration(o))
 }
 
+type StringOrSlice struct {
+	Val any // Value can be string or []string
+}
+
+func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.Val = str
+		return nil
+	}
+
+	var slice []string
+	if err := json.Unmarshal(data, &slice); err == nil {
+		s.Val = slice
+		return nil
+	}
+
+	return ErrInvalidDataType // Return an error if neither type matches
+}
+
+func (s StringOrSlice) MarshalJSON() ([]byte, error) {
+	switch v := s.Val.(type) {
+	case nil:
+		return json.Marshal(nil)
+	case string:
+		return json.Marshal(v)
+	case []string:
+		return json.Marshal(v)
+	default:
+		return nil, ErrInvalidDataType
+	}
+}
+
 // item represents a single item in the memory database. It would be similar to a row in a traditional database.
 type Item struct {
-	Value     any       `json:"value"`         // Value can be string or []string
-	TTL       time.Time `json:"ttl,omitempty"` // TTL is optional and will be omitted if not set
-	Kind      DataType  `json:"-"`             // Kind is used internally to determine the data type of the value
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Value     *StringOrSlice `json:"value"`         // Value can be string or []string
+	TTL       time.Time      `json:"ttl,omitempty"` // TTL is optional and will be omitted if not set
+	Kind      DataType       `json:"kind"`          // Kind is used internally to determine the data type of the value
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // newItem creates a new item with the given value and options
@@ -59,11 +94,11 @@ func newItem(value any, opts ...ItemOptions) (*Item, error) {
 	switch v := value.(type) {
 	case string:
 		dataToBeStored.Kind = StringType
-		dataToBeStored.Value = v
+		dataToBeStored.Value = &StringOrSlice{Val: v}
 		return dataToBeStored, nil
 	case []string:
 		dataToBeStored.Kind = StringSliceType
-		dataToBeStored.Value = v
+		dataToBeStored.Value = &StringOrSlice{Val: v}
 		return dataToBeStored, nil
 	case []interface{}:
 		// check if all elements are strings
@@ -75,7 +110,7 @@ func newItem(value any, opts ...ItemOptions) (*Item, error) {
 			stringSlice[i] = elem.(string)
 		}
 		dataToBeStored.Kind = StringSliceType
-		dataToBeStored.Value = stringSlice
+		dataToBeStored.Value = &StringOrSlice{Val: stringSlice}
 		return dataToBeStored, nil
 	default:
 		return nil, ErrInvalidDataType
@@ -83,26 +118,34 @@ func newItem(value any, opts ...ItemOptions) (*Item, error) {
 }
 
 // update modifies the value of an existing item in the database.
-func (d *Item) update(value any, opts ...ItemOptions) error {
+func (d *Item) update(value any, updatedAt time.Time, opts ...ItemOptions) error {
 	if d.Value == nil {
 		return ErrDataNotFound
 	}
 
-	switch d.Kind {
-	case StringType:
-		str, ok := value.(string)
-		if !ok {
-			return ErrInvalidDataType
+	// check whether the value is []interface{}. If it is, convert it to []string.
+	// Otherwise, if the value is a string, set it directly.
+	switch v := value.(type) {
+	case string:
+		d.Kind = StringType
+		d.Value = &StringOrSlice{Val: v}
+	case []string:
+		d.Kind = StringSliceType
+		d.Value = &StringOrSlice{Val: v}
+	case []interface{}:
+		// check if all elements are strings
+		stringSlice := make([]string, len(v))
+		for i, elem := range v {
+			if str, ok := elem.(string); ok {
+				stringSlice[i] = str
+			} else {
+				return ErrInvalidDataType
+			}
 		}
-		d.Value = str
-	case StringSliceType:
-		slice, ok := value.([]string)
-		if !ok {
-			return ErrInvalidDataType
-		}
-		d.Value = slice
+		d.Kind = StringSliceType
+		d.Value = &StringOrSlice{Val: stringSlice}
 	default:
-		return ErrInvalidDataType
+		return ErrInvalidDataType // Return an error if the value type is not supported
 	}
 
 	// apply options to set TTL and other properties
@@ -111,42 +154,44 @@ func (d *Item) update(value any, opts ...ItemOptions) error {
 	}
 
 	// Update the timestamp to the current time
-	d.UpdatedAt = time.Now()
+	d.UpdatedAt = updatedAt
 	return nil
 }
 
 // pushToSlice adds one or more values to a slice stored in the item.
-func (d *Item) pushToSlice(values ...string) error {
+func (d *Item) pushToSlice(updatedAt time.Time, value string) error {
 	if d.Kind != StringSliceType {
 		return ErrInvalidDataType
 	}
-	slice, ok := d.Value.([]string)
+	slice, ok := d.Value.Val.([]string)
 	if !ok {
 		return ErrInvalidDataType
 	}
-	d.Value = append(slice, values...)
-	d.UpdatedAt = time.Now()
+	d.Value = &StringOrSlice{Val: append(slice, value)}
+	d.UpdatedAt = updatedAt
 	return nil
 }
 
 // popFromSlice removes the last value from a slice
-func (d *Item) popFromSlice() error {
+func (d *Item) popFromSlice(updatedAt time.Time) error {
 	if d.Kind != StringSliceType {
 		return ErrInvalidDataType
 	}
-	slice, ok := d.Value.([]string)
+	slice, ok := d.Value.Val.([]string)
 	if !ok || len(slice) == 0 {
 		return ErrDataNotFound
 	}
-	d.Value = slice[:len(slice)-1]
-	d.UpdatedAt = time.Now()
+	d.Value = &StringOrSlice{Val: slice[:len(slice)-1]}
+	d.UpdatedAt = updatedAt
 	return nil
 }
 
+// isExpired checks if the item has expired based on its TTL.
 func (d *Item) isExpired() bool {
 	return d.TTL.Before(time.Now())
 }
 
+// calculateExpirationTime calculates the expiration time based on the given TTL.
 func calculateExpirationTime(ttl time.Duration) time.Time {
 	return time.Now().Add(ttl)
 }
