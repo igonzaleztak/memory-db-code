@@ -36,10 +36,11 @@ tasks:
     env:
       PERSISTENCE_ENABLED: true
       DB_PATH: .db
+      # VERBOSE: debug
     cmds:
       - go run cmd/main.go
 
   docker:
     desc: start the docker-compose
     cmds:
-      - docker compose up -d
+      - docker compose up --build -d

@@ -85,13 +85,19 @@ func (db *memoryDB) loadStoredData() error {
 		}
 
 		// Reconstruct the item and store it in the memoryDB
+		db.logger.Debug("reconstructing item from operation log", "key", op.Key, "command", op.Command)
 		switch op.Command {
 		case enums.DBCommandSet:
 			db.store[op.Key] = op.Item
 		case enums.DBCommandUpdate:
 			if item, exists := db.store[op.Key]; exists {
-				item.Value = op.Item.Value
-				item.UpdatedAt = op.Item.UpdatedAt
+				if err := item.update(op.Item.Value.Val, op.Item.UpdatedAt); err != nil {
+					return fmt.Errorf("failed to update item with key %s: %w", op.Key, err)
+				}
+				// update the ttl if it exists
+				if !op.Item.TTL.IsZero() {
+					item.TTL = op.Item.TTL
+				}
 			} else {
 				return fmt.Errorf("item with key %s not found for update", op.Key)
 			}
@@ -106,6 +112,10 @@ func (db *memoryDB) loadStoredData() error {
 				if err := item.pushToSlice(op.UpdatedAt, op.Item.Value.Val.(string)); err != nil {
 					return fmt.Errorf("failed to push value to item with key %s: %v", op.Key, err)
 				}
+				// update the ttl if it exists
+				if !op.Item.TTL.IsZero() {
+					item.TTL = op.Item.TTL
+				}
 			} else {
 				return fmt.Errorf("item with key %s not found for push", op.Key)
 			}
@@ -113,6 +123,10 @@ func (db *memoryDB) loadStoredData() error {
 			if item, exists := db.store[op.Key]; exists {
 				if err := item.popFromSlice(op.UpdatedAt); err != nil {
 					return fmt.Errorf("failed to pop value from item with key %s: %w", op.Key, err)
+				}
+				// update the ttl if it exists
+				if !op.Item.TTL.IsZero() {
+					item.TTL = op.Item.TTL
 				}
 			} else {
 				return fmt.Errorf("item with key %s not found for pop", op.Key)

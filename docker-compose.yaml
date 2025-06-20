@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      no_cache: true
     ports:
       - "8080:8080" # Main service port
       - "8081:8081" # Health check port
@@ -12,6 +13,9 @@ services:
       - PORT=8080
       - HEALTH_PORT=8081
 
-      # # Environment variables for enabling persistence
-      # - PERSISTENCE_ENABLED=true
-      # - PERSISTENCE_PATH="/tmp/gomemdb"
+    #   # Environment variables for enabling persistence
+    #   - PERSISTENCE_ENABLED=true
+    #   - DB_PATH=/home/gomemdb
+
+    # volumes:
+    #   - .db:/tmp/gomemdb

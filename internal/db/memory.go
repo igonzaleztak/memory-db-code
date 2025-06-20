@@ -50,6 +50,8 @@ func NewMemoryDB(logger *slog.Logger, opts ...DBOptions) DBClient {
 
 	// If persistence is enabled, set up the log file and encoder
 	if db.persistenceEnabled {
+		db.logger.Info("loading stored data from database file", "folder", db.dbPath)
+
 		if err := db.loadStoredData(); err != nil {
 			panic(fmt.Sprintf("failed to load stored data: %v", err))
 		}
