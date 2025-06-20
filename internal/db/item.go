@@ -36,10 +36,17 @@ func (o WithTTL) apply(opts *Item) {
 	opts.TTL = time.Now().Add(time.Duration(o))
 }
 
+// StringOrSlice is a custom type that can hold either a string or a slice of strings.
+//
+// It implements the json.Unmarshaler and json.Marshaler interfaces to handle JSON serialization and deserialization.
+// This ensures that the value is correctly interpreted as either a single string or a slice of strings when unmarshaling from JSON.
 type StringOrSlice struct {
 	Val any // Value can be string or []string
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface for StringOrSlice.
+// It attempts to unmarshal the JSON data into either a string or a slice of strings,
+// avoiding it to be unmarshaled into a generic []interface{} type.
 func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err == nil {
@@ -56,6 +63,23 @@ func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
 	return ErrInvalidDataType // Return an error if neither type matches
 }
 
+// MarshalJSON implements the json.Marshaler interface for StringOrSlice.
+// In this case the marshalJSON method writes the value within the StringOrSlice wrapper and not the wrapper itself.
+//
+// Example: It will marshal the struct as this:
+//
+//		{
+//	       "key": "value",
+//		   "value": "some string"
+//		}
+//
+// Instead of:
+//
+//		{
+//	       "key": "value",
+//		   "value": {
+//		       "Val": "some string"
+//		   }
 func (s StringOrSlice) MarshalJSON() ([]byte, error) {
 	switch v := s.Val.(type) {
 	case nil:

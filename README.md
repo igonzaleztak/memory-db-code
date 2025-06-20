@@ -86,6 +86,8 @@ type Config struct {
 	// Database configuration
 	DefaultTTL             time.Duration `mapstructure:"DEFAULT_TTL" validate:"required"`
 	DefaultCleanupInterval time.Duration `mapstructure:"DEFAULT_CLEANUP_INTERVAL" validate:"required"`
+	PersistenceEnabled     bool          `mapstructure:"PERSISTENCE_ENABLED"`
+	DBPath                 string        `mapstructure:"DB_PATH"` // Optional field that indicates the path where the database is stored
 }
 ```
 
@@ -97,7 +99,7 @@ The folder `db` includes the database's logic. The db is very simple, it offers 
 // DBClient defines the interface for interacting with an in-memory database.
 type DBClient interface {
 	// Get retrieves an item by its key.
-	Get(key string) (*item, error)
+	Get(key string) (*Item, error)
 
 	// Set stores an item with the specified key and optional options.
 	Set(key string, value any, opts ...ItemOptions) error
@@ -109,22 +111,28 @@ type DBClient interface {
 	Remove(key string) error
 
 	// Push adds a new item to the memory database with the specified key and value.
-	Push(key string, values []string, opts ...ItemOptions) (*item, error)
+	Push(key string, value string, opts ...ItemOptions) (*Item, error)
 
 	// Pop removes and returns the last item from a slice stored at the specified key.
-	Pop(key string) (*item, error)
+	Pop(key string) (*Item, error)
 
 	// Close releases any resources held by the database client.
 	Close()
 }
 
-
 // memoryDB represents an in-memory database that stores items with optional expiration.
 type memoryDB struct {
-	store           map[string]*item // in-memory store for items
+	logger          *slog.Logger     // logger for logging operations
+	store           map[string]*Item // in-memory store for items
 	cleanupInterval time.Duration    // interval for cleanup routine
 	mu              sync.RWMutex     // mutex for preventing race conditions
 	stopChan        chan struct{}    // channel to stop the cleanup routine
+
+	// Optional features
+	persistenceEnabled bool          // flag to indicate if persistence is enabled
+	dbPath             string        // path for persistence storage, if enabled
+	logFile            *os.File      // file handle for logging operations, if persistence is enabled
+	logEncoder         *json.Encoder // encoder for writing operations to the log file
 }
 ```
 
@@ -132,12 +140,73 @@ type memoryDB struct {
 
 ```go
 // item represents a single item in the memory database. It would be similar to a row in a traditional database.
-type item struct {
-	Value     any       `json:"value"`         // Value can be string or []string
-	TTL       time.Time `json:"ttl,omitempty"` // TTL is optional and will be omitted if not set
-	Kind      DataType  `json:"-"`             // Kind is used internally to determine the data type of the value
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+type Item struct {
+	Value     *StringOrSlice `json:"value"`         // Value can be string or []string
+	TTL       time.Time      `json:"ttl,omitempty"` // TTL is optional and will be omitted if not set
+	Kind      DataType       `json:"kind"`          // Kind is used internally to determine the data type of the value
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+```
+
+In the previous fragment of code, you can see that the item's value is stored as a custom type called `StringOrSlice`. This type has been created to ensure that the values stored in this struct are either a `string` or a `[]string`. In Go, when you try to unmarshal an array, it is going to be unmarshaled as a `[]interface{}` by default. Therefore, this type implements a custom interface of the `MarshalJSON` and `UnmarshalJSON` interfaces to solve this issue.
+
+```go
+// StringOrSlice is a custom type that can hold either a string or a slice of strings.
+//
+// It implements the json.Unmarshaler and json.Marshaler interfaces to handle JSON serialization and deserialization.
+// This ensures that the value is correctly interpreted as either a single string or a slice of strings when unmarshaling from JSON.
+type StringOrSlice struct {
+	Val any // Value can be string or []string
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface for StringOrSlice.
+// It attempts to unmarshal the JSON data into either a string or a slice of strings,
+// avoiding it to be unmarshaled into a generic []interface{} type.
+func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.Val = str
+		return nil
+	}
+
+	var slice []string
+	if err := json.Unmarshal(data, &slice); err == nil {
+		s.Val = slice
+		return nil
+	}
+
+	return ErrInvalidDataType // Return an error if neither type matches
+}
+
+// MarshalJSON implements the json.Marshaler interface for StringOrSlice.
+// In this case the marshalJSON method writes the value within the StringOrSlice wrapper and not the wrapper itself.
+//
+// Example: It will marshal the struct as this:
+//
+//		{
+//	       "key": "value",
+//		   "value": "some string"
+//		}
+//
+// Instead of:
+//
+//		{
+//	       "key": "value",
+//		   "value": {
+//		       "Val": "some string"
+//		   }
+func (s StringOrSlice) MarshalJSON() ([]byte, error) {
+	switch v := s.Val.(type) {
+	case nil:
+		return json.Marshal(nil)
+	case string:
+		return json.Marshal(v)
+	case []string:
+		return json.Marshal(v)
+	default:
+		return nil, ErrInvalidDataType
+	}
 }
 ```
 
@@ -193,6 +262,67 @@ Alternatively, if you don't want to install the tool Taskfile, the bash commands
 ## Optional features
 
 This section describes the optional features that have been implemented in the project and how they have been implemented.
+
+### Data persistence
+
+Support for data persistence has been added to the in-memory database. This means that when you run the database in persistence mode, the stored data will not be lost after restarts.   To implement this feature, the database logs every operation to a file, reads the file at startup, and replays all the stored commands.
+
+
+This is how the log file looks like:
+
+```json
+{"command":"set","key":"test","time":"2025-06-20T16:54:21.911793+02:00","value":"Test1","ttl":"2025-06-20T17:54:21.911793+02:00","kind":0,"created_at":"2025-06-20T16:54:21.911792+02:00","updated_at":"2025-06-20T16:54:21.911792+02:00"}
+{"command":"update","key":"test","time":"2025-06-20T16:54:32.216356+02:00","value":["Test1"],"ttl":"2025-06-20T16:54:42.216356+02:00","kind":1,"created_at":"2025-06-20T16:54:21.911792+02:00","updated_at":"2025-06-20T16:54:32.216355+02:00"}
+{"command":"push","key":"test","time":"2025-06-20T16:54:34.434883+02:00","value":"test2","ttl":"0001-01-01T00:00:00Z","kind":0,"created_at":"0001-01-01T00:00:00Z","updated_at":"2025-06-20T16:54:34.434883+02:00"}
+{"command":"remove","key":"test","time":"2025-06-20T16:54:37.87889+02:00"}
+```
+
+You can easily actiave this feature by setting the following environment variables:
+
+- `PERSISTENCE_ENABLED`: boolean that admits `true` or `false`. If `true` it stores the data persistently.
+- `DB_PATH`: Path inside your filesystem where the db will store the data.
+
+
+By default, persistence is disabled as you can see if you take a look in the main.go file.
+
+```go
+	dbOpts := []db.DBOptions{db.WithCleanupInterval(configuration.DefaultCleanupInterval)}
+	if configuration.PersistenceEnabled {
+		logger.Info("Persistence is enabled, setting up database with persistence options")
+		dbOpts = append(dbOpts, db.WithPersistenceEnabled(configuration.DBPath))
+	}
+	db := db.NewMemoryDB(logger, dbOpts...)
+```
+
+The file [persistence.go](internal/db/persistence.go) contains the implementation of this feature.
+
+You can easily run the db in persistence mode by executing the next command:
+
+```bash
+task run_persistence
+```
+
+Or alternatively, you can uncomment the next global variables in the docker-compose.yaml file.
+
+```yaml
+services:
+  gomemdb:
+    container_name: gomemdb
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080" # Main service port
+      - "8081:8081" # Health check port
+    environment:
+      - API_VERSION="v1.0.0"
+      - PORT=8080
+      - HEALTH_PORT=8081
+
+      # # Environment variables for enabling persistence
+      # - PERSISTENCE_ENABLED=true
+      # - PERSISTENCE_PATH="/tmp/gomemdb"
+```
 
 ### Performance test
 

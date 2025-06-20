@@ -1,13 +1,11 @@
 openapi: 3.0.3
 info:
-  title: MemoryDB API
-  version: "1.0.0"
-  description: In-memory key-value store API with TTL support and list operations.
-
+  title: In-Memory DB API
+  version: 1.0.0
 paths:
   /api/v1/set:
     post:
-      summary: Store a value in the memory database
+      summary: Set a key-value pair
       requestBody:
         required: true
         content:
@@ -16,19 +14,16 @@ paths:
               $ref: '#/components/schemas/SetRowRequest'
       responses:
         '200':
-          description: Value successfully stored
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OKResponse'
         '400':
-          description: Invalid request payload
-        '500':
-          description: Internal server error
-
-  /api/v1/{key}:
+          description: Bad request
+  /api/v1/get/{key}:
     get:
-      summary: Retrieve a value by key
+      summary: Get value by key
       parameters:
         - in: path
           name: key
@@ -37,18 +32,16 @@ paths:
             type: string
       responses:
         '200':
-          description: Value found
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RowResponse'
         '404':
-          description: Key not found or expired
-        '500':
-          description: Internal server error
-
+          description: Not found
+  /api/v1/remove/{key}:
     delete:
-      summary: Delete a value by key
+      summary: Remove key from store
       parameters:
         - in: path
           name: key
@@ -57,18 +50,16 @@ paths:
             type: string
       responses:
         '200':
-          description: Value deleted
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OKResponse'
         '404':
-          description: Key not found
-        '500':
-          description: Internal server error
-
-    patch:
-      summary: Update a value by key
+          description: Not found
+  /api/v1/update/{key}:
+    put:
+      summary: Update existing key
       parameters:
         - in: path
           name: key
@@ -80,22 +71,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SetRowRequest'
+              $ref: '#/components/schemas/UpdateRowRequest'
       responses:
         '200':
-          description: Value updated
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OKResponse'
         '404':
-          description: Key not found
-        '500':
-          description: Internal server error
-
-  /api/v1/{key}/push:
-    patch:
-      summary: Push a value into a string slice at the given key
+          description: Not found
+  /api/v1/push/{key}:
+    post:
+      summary: Push item to list
       parameters:
         - in: path
           name: key
@@ -110,21 +98,16 @@ paths:
               $ref: '#/components/schemas/PushItemToSliceRequest'
       responses:
         '200':
-          description: Value pushed
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RowResponse'
-        '400':
-          description: Invalid value type or structure
         '404':
-          description: Key not found
-        '500':
-          description: Internal server error
-
-  /api/v1/{key}/pop:
-    patch:
-      summary: Pop the last item from a string slice at the given key
+          description: Not found
+  /api/v1/pop/{key}:
+    post:
+      summary: Pop item from list
       parameters:
         - in: path
           name: key
@@ -133,18 +116,22 @@ paths:
             type: string
       responses:
         '200':
-          description: Value popped
+          description: Success
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RowResponse'
         '404':
-          description: Key not found or slice is empty
-        '500':
-          description: Internal server error
+          description: Not found
 
 components:
   schemas:
+    OKResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: ok
     SetRowRequest:
       type: object
       required:
@@ -153,15 +140,29 @@ components:
       properties:
         key:
           type: string
-          description: The key to store the value under
         value:
-          description: The value to store (must be string or array of strings)
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
         ttl:
           type: string
-          format: duration
-          description: Optional time-to-live in Go duration format
-          example: "1h"
-
+          example: "5m"
+    UpdateRowRequest:
+      type: object
+      required:
+        - value
+      properties:
+        value:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        ttl:
+          type: string
+          example: "10m"
     PushItemToSliceRequest:
       type: object
       required:
@@ -169,13 +170,9 @@ components:
       properties:
         value:
           type: string
-          description: The string value to push to the slice
         ttl:
           type: string
-          format: duration
-          description: Optional TTL in Go duration format
-          example: "1h"
-
+          example: "2m"
     RowResponse:
       type: object
       properties:
@@ -189,22 +186,13 @@ components:
                 type: string
         kind:
           type: string
-          description: Type of the value stored
           enum: [string, string_slice]
         ttl:
           type: string
           format: date-time
-          nullable: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
-
-    OKResponse:
-      type: object
-      properties:
-        message:
-          type: string
-          example: ok
