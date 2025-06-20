@@ -196,20 +196,22 @@ func (s *StringOrSlice) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaler interface for StringOrSlice.
 // In this case the marshalJSON method writes the value within the StringOrSlice wrapper and not the wrapper itself.
 //
-// Example: It will marshal the struct as this:
+// Example: 
+// It will marshal the struct as this:
 //
 //		{
-//	       "key": "value",
-//		   "value": "some string"
+//			"key": "value",
+//			"value": "some string"
 //		}
 //
 // Instead of:
 //
 //		{
-//	       "key": "value",
-//		   "value": {
-//		       "Val": "some string"
-//		   }
+//			"key": "value",
+//			"value": {
+//				"Val": "some string"
+//			}
+//		}
 func (s StringOrSlice) MarshalJSON() ([]byte, error) {
 	switch v := s.Val.(type) {
 	case nil:
