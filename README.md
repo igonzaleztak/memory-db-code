@@ -1,5 +1,19 @@
 # In-Memory Database
 
+- [In-Memory Database](#in-memory-database)
+	- [Overview](#overview)
+	- [Design](#design)
+	- [Installation and usage](#installation-and-usage)
+		- [Set -- POST /api/v1/set](#set----post-apiv1set)
+		- [Remove -- DEL /api/v1/test](#remove----del-apiv1test)
+		- [Update -- PATCH /api/v1/test](#update----patch-apiv1test)
+		- [Push data -- PATCH /api/v1/test/push](#push-data----patch-apiv1testpush)
+		- [POP --- PATCH /api/v1/test/pop](#pop-----patch-apiv1testpop)
+	- [Optional features](#optional-features)
+		- [Data persistence](#data-persistence)
+		- [Performance test](#performance-test)
+
+
 ## Overview
 
 This repository aims to design an in-memory database that must be able to store `string` and `[]string`. The db must support the next operations:
@@ -257,6 +271,124 @@ The API can be launch using the tasks defined in the `Taskfile.yaml`, so the too
 - Run the docker compose: `task docker`
 
 Alternatively, if you don't want to install the tool Taskfile, the bash commands used to run the previous orders are shown in the `Taskfile.yaml`.
+
+
+## API Examples
+
+This section displays some examples on how to interact with the API. Additionally,the API's OpenAPI specification is served in the endpoint [/api/v1/docs/swagger/index.html](http://localhost:8080/api/v1/docs/swagger/index.html).
+
+### Set -- POST /api/v1/set
+
+Input:
+
+```json
+{
+    "key": "test",
+    "value": "Test1",
+    "ttl": "1h"
+}
+```
+
+Response:
+
+```json
+{
+    "message": "ok"
+}
+```
+
+### Get  -- GET /api/v1/test
+
+Response:
+
+```json
+{
+    "key": "test",
+    "kind": "string_slice",
+    "value": [
+        "Test1",
+        "test2"
+    ],
+    "ttl": "2025-06-20T19:40:46.266542+02:00",
+    "created_at": "2025-06-20T18:39:59.327178+02:00",
+    "updated_at": "2025-06-20T18:40:49.38729+02:00"
+}
+```
+
+### Remove -- DEL /api/v1/test
+
+Response:
+
+```json
+{
+    "message": "ok"
+}
+```
+
+### Update -- PATCH /api/v1/test
+
+Body:
+
+```json
+{
+    "value": [
+        "Test1"
+    ],
+    "ttl": "1h"
+}
+```
+
+Response:
+
+```json
+{
+    "message": "ok"
+}
+```
+
+### Push data -- PATCH /api/v1/test/push
+
+Body:
+
+```json
+{
+    "value": "test2",
+    "ttl": "24h"
+}
+```
+
+Response:
+
+```json
+{
+    "key": "test",
+    "kind": "string_slice",
+    "value": [
+        "Test1",
+        "test2"
+    ],
+    "ttl": "2025-06-20T17:43:50.995712669Z",
+    "created_at": "2025-06-20T16:43:47.150490625Z",
+    "updated_at": "2025-06-20T16:43:54.357287171Z"
+}
+```
+
+### POP --- PATCH /api/v1/test/pop
+
+Response: 
+
+```json
+{
+    "key": "test",
+    "kind": "string_slice",
+    "value": [
+        "Test1",
+    ],
+    "ttl": "2025-06-20T17:43:50.995712669Z",
+    "created_at": "2025-06-20T16:43:47.150490625Z",
+    "updated_at": "2025-06-20T16:43:54.357287171Z"
+}
+```
 
 
 ## Optional features
