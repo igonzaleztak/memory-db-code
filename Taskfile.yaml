@@ -12,6 +12,12 @@ tasks:
     cmds:
       - go test -skip TestIntegration  -v ./... -race
 
+  benchmark:
+    desc: runs the benchmarks
+    deps:  [mod]
+    cmds:
+      - go test -run=^$ -bench=. -benchmem -v ./... -race
+
   integration_test:
     desc: runs the integration tests
     deps:  [mod]

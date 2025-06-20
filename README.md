@@ -189,3 +189,17 @@ The API can be launch using the tasks defined in the `Taskfile.yaml`, so the too
 
 Alternatively, if you don't want to install the tool Taskfile, the bash commands used to run the previous orders are shown in the `Taskfile.yaml`.
 
+
+## Optional features
+
+This section describes the optional features that have been implemented in the project and how they have been implemented.
+
+### Performance test
+
+To support this feature, the benchmark file [memory_bench_test.go](internal/db/memory_bench_test.go) has been included. In this file you can see an example of how the memory db could be benchmarked. You can run this benchmark using the command `task benchmark` or alternatively the following command:
+
+```bash
+go test -run=^$ -bench=. -benchmem -v ./... -race
+```
+
+To get more detailed insights of the Go code I would perform profiling.
