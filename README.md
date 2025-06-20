@@ -274,6 +274,9 @@ The API can be launch using the tasks defined in the `Taskfile.yaml`, so the too
 
 Alternatively, if you don't want to install the tool Taskfile, the bash commands used to run the previous orders are shown in the `Taskfile.yaml`.
 
+**Note:** The previous commands only run the application with the mandatory features.  
+Further down in this document, you'll find instructions on how to run the database with optional features enabled.
+
 
 ## API Examples
 
